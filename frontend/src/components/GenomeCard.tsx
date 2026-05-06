@@ -1,3 +1,4 @@
+import type { KeyboardEvent, ReactNode } from 'react'
 import type { MetricGenome } from '../types/genome'
 import { metricToLatex } from '../utils/latex'
 import { MetricLatex } from './MetricLatex'
@@ -5,26 +6,49 @@ import { MetricRenderer } from './MetricRenderer'
 
 interface Props {
   genome: MetricGenome
-  selected: boolean
-  onSelect: (id: string) => void
+  selected?: boolean
+  /** When omitted the card is non-interactive (used in the read-only Gallery view). */
+  onSelect?: (id: string) => void
+  /** Optional corner action — Save in breed view, Like in gallery view. */
+  actionButton?: ReactNode
 }
 
-export function GenomeCard({ genome, selected, onSelect }: Props) {
+export function GenomeCard({ genome, selected = false, onSelect, actionButton }: Props) {
   // Prefer the spherical display form for clean physics notation; fall back
   // to the compute (Cartesian) form if a genome doesn't have one.
   const latex = metricToLatex(genome.displayMetric ?? genome.metric)
+  const isInteractive = onSelect !== undefined
+
+  const handleClick = () => onSelect?.(genome.id)
+  const handleKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (!onSelect) return
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onSelect(genome.id)
+    }
+  }
+
   return (
-    <button
-      onClick={() => onSelect(genome.id)}
+    <div
+      role={isInteractive ? 'button' : undefined}
+      tabIndex={isInteractive ? 0 : undefined}
+      onClick={isInteractive ? handleClick : undefined}
+      onKeyDown={isInteractive ? handleKey : undefined}
       className={[
-        'flex flex-col items-center gap-2 p-2 rounded-lg',
-        'bg-[#0a0a12] border transition-all duration-200 cursor-pointer',
-        'focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400',
+        'relative flex flex-col items-center gap-2 p-2 rounded-lg',
+        'bg-[#0a0a12] border transition-all duration-200',
+        isInteractive
+          ? 'cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400'
+          : '',
         selected
           ? 'border-[#00f5ff] shadow-[0_0_0_2px_#00f5ff,0_0_24px_#00f5ff44]'
-          : 'border-[#1a1a2e] hover:border-cyan-800',
+          : `border-[#1a1a2e] ${isInteractive ? 'hover:border-cyan-800' : ''}`,
       ].join(' ')}
     >
+      {actionButton && (
+        <div className="absolute top-2 right-2 z-10">{actionButton}</div>
+      )}
+
       <MetricRenderer genome={genome} />
 
       <MetricLatex
@@ -35,6 +59,6 @@ export function GenomeCard({ genome, selected, onSelect }: Props) {
       <span className="text-[11px] font-mono text-slate-400 tracking-widest uppercase pb-1">
         {genome.name}
       </span>
-    </button>
+    </div>
   )
 }
