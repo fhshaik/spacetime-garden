@@ -1,0 +1,89 @@
+# Local dev orchestration. Mirrors the production EKS topology closely:
+# postgres, a one-shot migration container (analogous to the Argo CD
+# PreSync Job in prod), 3 backend services, and the frontend nginx image.
+#
+# For day-to-day frontend work, prefer `cd frontend && npm run dev` —
+# Vite's proxy forwards /api/* to the compose backends on 8001/8002/8003.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: garden-postgres
+    environment:
+      POSTGRES_USER: garden
+      POSTGRES_PASSWORD: garden
+      POSTGRES_DB: garden
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U garden -d garden"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  # One-shot — runs alembic upgrade head and exits. Both DB-touching
+  # services depend on this completing successfully before they start.
+  # In production this becomes an Argo CD PreSync Job (see infra repo).
+  migrate:
+    build: ./services/genome-service
+    container_name: garden-migrate
+    environment:
+      DATABASE_URL: postgresql+asyncpg://garden:garden@postgres:5432/garden
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+
+  genome-service:
+    build: ./services/genome-service
+    container_name: garden-genome
+    environment:
+      DATABASE_URL: postgresql+asyncpg://garden:garden@postgres:5432/garden
+      LOG_LEVEL: INFO
+    ports:
+      - "8001:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  breeding-service:
+    build: ./services/breeding-service
+    container_name: garden-breeding
+    environment:
+      LOG_LEVEL: INFO
+    ports:
+      - "8002:8000"
+
+  gallery-service:
+    build: ./services/gallery-service
+    container_name: garden-gallery
+    environment:
+      DATABASE_URL: postgresql+asyncpg://garden:garden@postgres:5432/garden
+      LOG_LEVEL: INFO
+    ports:
+      - "8003:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # Production-image frontend. For dev iteration, use `cd frontend && npm run dev`
+  # instead — much faster reloads, and Vite's proxy handles /api/* rewriting.
+  frontend:
+    build: ./frontend
+    container_name: garden-frontend
+    environment:
+      # Empty = relative paths; nginx co-serves the SPA and the ALB routes
+      # /api/* directly to backend targets in production. In compose, the
+      # nginx image only serves static assets — there's no in-container
+      # API proxy, so this is mainly useful for image verification.
+      API_BASE: ""
+    ports:
+      - "8080:8080"
+    profiles:
+      - frontend
+
+volumes:
+  postgres-data: {}
