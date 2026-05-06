@@ -1,0 +1,4 @@
+// Substituted by docker-entrypoint.sh at container start (envsubst).
+// API_BASE may be empty (default — same-origin routing through the ALB)
+// or an explicit URL like https://api.staging.example.com.
+window.__ENV__ = { API_BASE: "${API_BASE}" };

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+.git/
+.gitignore
+.dockerignore
+Dockerfile
+*.md
