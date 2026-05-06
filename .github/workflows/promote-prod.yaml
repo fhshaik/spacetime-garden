@@ -1,0 +1,88 @@
+name: Promote to Production
+
+# Triggered when a release tag (v*.*.*) is pushed. workflow_run with a
+# branches filter doesn't match tag pushes, so we trigger directly on the
+# tag and explicitly wait for the CI run on this SHA to succeed before
+# promoting — guarantees the prod values point at images that exist.
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+  actions: read   # for `gh run list` against this repo
+
+jobs:
+  await-ci:
+    name: Wait for CI on this tag SHA
+    runs-on: ubuntu-latest
+    steps:
+      - name: Poll CI status
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # Up to 30 minutes (60 × 30s).
+          for i in $(seq 1 60); do
+            row=$(gh run list \
+                    --workflow CI \
+                    --commit "$SHA" \
+                    --limit 1 \
+                    --json status,conclusion \
+                    --jq '.[0] // empty')
+
+            if [ -z "$row" ]; then
+              echo "[$i] No CI run for $SHA yet — waiting…"
+            else
+              status=$(jq -r '.status'     <<<"$row")
+              concl=$(jq  -r '.conclusion' <<<"$row")
+              echo "[$i] CI status=$status conclusion=$concl"
+              case "$concl" in
+                success) echo "CI succeeded — proceeding."; exit 0 ;;
+                failure|cancelled|timed_out|action_required)
+                  echo "CI conclusion=$concl — aborting prod promotion." ; exit 1 ;;
+              esac
+            fi
+            sleep 30
+          done
+          echo "Timed out after 30 min waiting for CI."
+          exit 1
+
+  bump-prod:
+    name: Bump prod values.yaml in infra repo
+    needs: await-ci
+    runs-on: ubuntu-latest
+    env:
+      SHA: ${{ github.sha }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - name: Checkout infra repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.INFRA_REPO }}
+          token: ${{ secrets.INFRA_REPO_TOKEN }}
+          ref: main
+
+      - name: Bump image tags
+        run: |
+          set -euo pipefail
+          for svc in genome-service breeding-service gallery-service frontend; do
+            yq -i "(.[\"${svc}\"].image.tag) = \"${SHA}\"" gitops/envs/prod/values.yaml
+          done
+          echo "── after bump ──"
+          yq '.. | select(has("image"))' gitops/envs/prod/values.yaml
+
+      - name: Commit & push
+        run: |
+          set -euo pipefail
+          git config user.email "garden-ci@users.noreply.github.com"
+          git config user.name  "garden-ci"
+          git add gitops/envs/prod/values.yaml
+          if git diff --cached --quiet; then
+            echo "No tag changes — values already at ${SHA}. Skipping."
+            exit 0
+          fi
+          git commit -m "chore(prod): release ${TAG} (${SHA::7})"
+          git push
