@@ -8,6 +8,7 @@ export default function App() {
   const [genomes, setGenomes] = useState<MetricGenome[]>(initialGenomes)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [generation, setGeneration] = useState(0)
+  const [mutationStrength, setMutationStrength] = useState(0.5)
 
   function toggleSelect(id: string) {
     setSelected(prev => {
@@ -20,7 +21,7 @@ export default function App() {
   function handleBreed() {
     const parents = genomes.filter(g => selected.has(g.id))
     if (parents.length === 0) return
-    setGenomes(breedGeneration(parents))
+    setGenomes(breedGeneration(parents, mutationStrength))
     setSelected(new Set())
     setGeneration(g => g + 1)
   }
@@ -54,7 +55,29 @@ export default function App() {
       </main>
 
       {/* ── Controls ──────────────────────────────────────────────────── */}
-      <footer className="flex flex-col items-center gap-3">
+      <footer className="flex flex-col items-center gap-4">
+        <div className="flex items-center gap-3 select-none">
+          <label
+            htmlFor="mutation-slider"
+            className="text-slate-600 text-xs tracking-[0.2em] uppercase"
+          >
+            Mutation
+          </label>
+          <input
+            id="mutation-slider"
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={mutationStrength}
+            onChange={(e) => setMutationStrength(parseFloat(e.target.value))}
+            className="w-44 accent-cyan-500 cursor-pointer"
+          />
+          <span className="text-cyan-300 text-xs font-mono w-10 text-right tabular-nums">
+            {Math.round(mutationStrength * 100)}%
+          </span>
+        </div>
+
         <p className="text-slate-600 text-xs tracking-widest uppercase select-none">
           {selCount === 0
             ? 'Select candidates to breed'

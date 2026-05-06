@@ -1,4 +1,6 @@
 import type { MetricGenome } from '../types/genome'
+import { metricToLatex } from '../utils/latex'
+import { MetricLatex } from './MetricLatex'
 import { MetricRenderer } from './MetricRenderer'
 
 interface Props {
@@ -8,6 +10,9 @@ interface Props {
 }
 
 export function GenomeCard({ genome, selected, onSelect }: Props) {
+  // Prefer the spherical display form for clean physics notation; fall back
+  // to the compute (Cartesian) form if a genome doesn't have one.
+  const latex = metricToLatex(genome.displayMetric ?? genome.metric)
   return (
     <button
       onClick={() => onSelect(genome.id)}
@@ -21,6 +26,12 @@ export function GenomeCard({ genome, selected, onSelect }: Props) {
       ].join(' ')}
     >
       <MetricRenderer genome={genome} />
+
+      <MetricLatex
+        latex={latex}
+        className="text-[10px] text-slate-300 leading-snug max-w-[220px] overflow-x-auto px-1 py-1"
+      />
+
       <span className="text-[11px] font-mono text-slate-400 tracking-widest uppercase pb-1">
         {genome.name}
       </span>
