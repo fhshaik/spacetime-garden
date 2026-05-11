@@ -8,7 +8,7 @@ on:
 
 permissions:
   contents: read
-  id-token: write   # OIDC for AWS — used only by build-push
+  # id-token: write   # would be for OIDC — disabled on Vocareum, using static creds
 
 env:
   PYTHON_VERSION: "3.12"
@@ -87,10 +87,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials (OIDC)
+      # Vocareum-mode auth: static credentials from repo secrets.
+      # AWS Academy Lab denies iam:CreateOpenIDConnectProvider, so OIDC is not
+      # an option. Creds expire with the 4-hour lab session; refresh via
+      # `gh secret set` before each demo. On a real AWS account, restore the
+      # `role-to-assume: ${{ vars.AWS_ROLE_ARN }}` line above.
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Login to Amazon ECR
