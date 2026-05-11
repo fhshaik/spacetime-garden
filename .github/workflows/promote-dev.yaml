@@ -1,0 +1,55 @@
+name: Promote to Dev
+
+# Triggered after CI completes on main. workflow_run pulls the SHA of the
+# original push, so the bump always targets a SHA whose images CI just
+# built and pushed to ECR — no race with build-push.
+#
+# Rubric §2: the "Dev" entry point of the Dev→QA→UAT→Prod forward chain.
+# Every conventional-commit / PR merge to main lands here first; the
+# nightly-qa workflow in the infra repo carries it forward to QA and
+# (after smoke tests) to UAT.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  bump-dev:
+    name: Bump dev values.yaml in infra repo
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - name: Checkout infra repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.INFRA_REPO }}
+          token: ${{ secrets.INFRA_REPO_TOKEN }}
+          ref: main
+
+      - name: Bump image tags
+        run: |
+          set -euo pipefail
+          for svc in genome-service breeding-service gallery-service frontend; do
+            yq -i "(.[\"${svc}\"].image.tag) = \"${SHA}\"" gitops/envs/dev/values.yaml
+          done
+          echo "── after bump ──"
+          yq '.. | select(has("image"))' gitops/envs/dev/values.yaml
+
+      - name: Commit & push
+        run: |
+          set -euo pipefail
+          git config user.email "garden-ci@users.noreply.github.com"
+          git config user.name  "garden-ci"
+          git add gitops/envs/dev/values.yaml
+          if git diff --cached --quiet; then
+            echo "No tag changes — values already at ${SHA}. Skipping."
+            exit 0
+          fi
+          git commit -m "chore(dev): bump images to ${SHA::7}"
+          git push

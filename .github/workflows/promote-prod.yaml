@@ -50,9 +50,42 @@ jobs:
           echo "Timed out after 30 min waiting for CI."
           exit 1
 
+  verify-uat-match:
+    name: Verify tag SHA matches UAT
+    needs: await-ci
+    runs-on: ubuntu-latest
+    env:
+      SHA: ${{ github.sha }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - name: Checkout infra repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.INFRA_REPO }}
+          token: ${{ secrets.INFRA_REPO_TOKEN }}
+          ref: main
+
+      - name: Compare tag SHA against current UAT tags
+        run: |
+          set -euo pipefail
+          MISMATCH=0
+          for svc in genome-service breeding-service gallery-service frontend; do
+            UAT_TAG=$(yq -r ".[\"$svc\"].image.tag" gitops/envs/uat/values.yaml)
+            if [ "$UAT_TAG" != "$SHA" ]; then
+              echo "::error::Tag ${TAG} (SHA ${SHA::7}) does not match current UAT ${svc} tag (${UAT_TAG::7})."
+              MISMATCH=1
+            else
+              echo "✓ ${svc}: UAT tag matches ${SHA::7}"
+            fi
+          done
+          if [ "$MISMATCH" -eq 1 ]; then
+            echo "::error::Refusing to promote ${TAG} → prod. Merge to main and wait for the Dev→QA→UAT chain to reach UAT first, then re-tag."
+            exit 1
+          fi
+
   bump-prod:
     name: Bump prod values.yaml in infra repo
-    needs: await-ci
+    needs: [await-ci, verify-uat-match]
     runs-on: ubuntu-latest
     env:
       SHA: ${{ github.sha }}
