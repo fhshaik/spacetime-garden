@@ -6,9 +6,10 @@ import { LikeButton } from './CardActions'
 interface Props {
   items: GalleryItem[]
   onLike: (genomeId: string) => void
+  onOpen: (genomeId: string) => void
 }
 
-export function GalleryView({ items, onLike }: Props) {
+export function GalleryView({ items, onLike, onOpen }: Props) {
   if (items.length === 0) {
     return (
       <div className="text-slate-600 text-xs tracking-[0.2em] uppercase select-none my-12">
@@ -25,6 +26,7 @@ export function GalleryView({ items, onLike }: Props) {
           <GenomeCard
             key={item.id}
             genome={genome}
+            onOpen={onOpen}
             actionButton={
               <LikeButton count={item.like_count} onClick={() => onLike(item.id)} />
             }

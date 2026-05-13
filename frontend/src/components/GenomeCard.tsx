@@ -7,24 +7,27 @@ import { MetricRenderer } from './MetricRenderer'
 interface Props {
   genome: MetricGenome
   selected?: boolean
-  /** When omitted the card is non-interactive (used in the read-only Gallery view). */
+  /** Breed-view: click toggles selection. Mutually exclusive with onOpen. */
   onSelect?: (id: string) => void
+  /** Gallery-view: click opens the detail modal. */
+  onOpen?: (id: string) => void
   /** Optional corner action — Save in breed view, Like in gallery view. */
   actionButton?: ReactNode
 }
 
-export function GenomeCard({ genome, selected = false, onSelect, actionButton }: Props) {
+export function GenomeCard({ genome, selected = false, onSelect, onOpen, actionButton }: Props) {
   // Prefer the spherical display form for clean physics notation; fall back
   // to the compute (Cartesian) form if a genome doesn't have one.
   const latex = metricToLatex(genome.displayMetric ?? genome.metric)
-  const isInteractive = onSelect !== undefined
+  const activate = onSelect ?? onOpen
+  const isInteractive = activate !== undefined
 
-  const handleClick = () => onSelect?.(genome.id)
+  const handleClick = () => activate?.(genome.id)
   const handleKey = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (!onSelect) return
+    if (!activate) return
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
-      onSelect(genome.id)
+      activate(genome.id)
     }
   }
 

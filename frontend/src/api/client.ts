@@ -122,6 +122,9 @@ export const api = {
         `/api/genomes?limit=${limit}&offset=${offset}`,
       )
     },
+    get(id: string) {
+      return request<ServerGenome>(`/api/genomes/${id}`)
+    },
     delete(id: string) {
       return request<void>(`/api/genomes/${id}`, { method: 'DELETE' })
     },

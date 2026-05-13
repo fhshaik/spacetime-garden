@@ -4,6 +4,7 @@ import { hydrate } from './api/hydrate'
 import { SaveButton } from './components/CardActions'
 import { GalleryView } from './components/GalleryView'
 import { GenomeCard } from './components/GenomeCard'
+import { GenomeDetailModal } from './components/GenomeDetailModal'
 import { initialGenomes } from './data/initialGenomes'
 import type { MetricGenome } from './types/genome'
 
@@ -20,6 +21,7 @@ export default function App() {
   const [view, setView] = useState<View>('breed')
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([])
   const [toast, setToast] = useState<Toast | null>(null)
+  const [detailId, setDetailId] = useState<string | null>(null)
 
   // Auto-clear toast after a few seconds.
   useEffect(() => {
@@ -169,7 +171,7 @@ export default function App() {
           ))}
         </main>
       ) : (
-        <GalleryView items={galleryItems} onLike={handleLike} />
+        <GalleryView items={galleryItems} onLike={handleLike} onOpen={setDetailId} />
       )}
 
       {/* Breed controls — only in breed view */}
@@ -223,6 +225,14 @@ export default function App() {
             {isLoading ? 'Breeding…' : 'Breed Next Generation'}
           </button>
         </footer>
+      )}
+
+      {detailId && (
+        <GenomeDetailModal
+          genomeId={detailId}
+          onClose={() => setDetailId(null)}
+          onError={showError}
+        />
       )}
     </div>
   )

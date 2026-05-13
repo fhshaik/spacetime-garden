@@ -6,6 +6,9 @@ import { metricToGLSL } from '../utils/glsl'
 
 const RENDER_SIZE  = 72
 const DISPLAY_SIZE = 220
+// Upscale ratio is intentional — preserves the pixelated aesthetic when
+// callers ask for a larger display size without bumping shader cost.
+const RENDER_PER_DISPLAY_PX = RENDER_SIZE / DISPLAY_SIZE
 
 // Loop length: animation frequencies are integer multiples of 2π/LOOP_SECONDS
 // so the recorded WebM closes seamlessly.
@@ -493,11 +496,13 @@ ${metricGLSL}
 
 interface Props {
   genome: MetricGenome
+  displaySize?: number
 }
 
-export function MetricRenderer({ genome }: Props) {
+export function MetricRenderer({ genome, displaySize = DISPLAY_SIZE }: Props) {
   const mountRef = useRef<HTMLDivElement>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
+  const renderSize = Math.max(32, Math.round(displaySize * RENDER_PER_DISPLAY_PX))
 
   useEffect(() => {
     setVideoUrl(null)
@@ -507,11 +512,11 @@ export function MetricRenderer({ genome }: Props) {
 
     const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false, preserveDrawingBuffer: false })
     renderer.setPixelRatio(1)
-    renderer.setSize(RENDER_SIZE, RENDER_SIZE, false)
+    renderer.setSize(renderSize, renderSize, false)
 
     const canvas = renderer.domElement
-    canvas.style.width  = `${DISPLAY_SIZE}px`
-    canvas.style.height = `${DISPLAY_SIZE}px`
+    canvas.style.width  = `${displaySize}px`
+    canvas.style.height = `${displaySize}px`
     canvas.style.imageRendering = 'pixelated'
     el.appendChild(canvas)
 
@@ -604,7 +609,7 @@ export function MetricRenderer({ genome }: Props) {
       }
       cleanupGL()
     }
-  }, [genome])
+  }, [genome, displaySize, renderSize])
 
   useEffect(() => {
     return () => {
@@ -614,14 +619,14 @@ export function MetricRenderer({ genome }: Props) {
 
   return (
     <div
-      style={{ width: DISPLAY_SIZE, height: DISPLAY_SIZE }}
+      style={{ width: displaySize, height: displaySize }}
       className="rounded overflow-hidden bg-black relative"
     >
       <div
         ref={mountRef}
         style={{
-          width: DISPLAY_SIZE,
-          height: DISPLAY_SIZE,
+          width: displaySize,
+          height: displaySize,
           display: videoUrl ? 'none' : 'block',
         }}
       />
@@ -632,11 +637,11 @@ export function MetricRenderer({ genome }: Props) {
           loop
           muted
           playsInline
-          width={DISPLAY_SIZE}
-          height={DISPLAY_SIZE}
+          width={displaySize}
+          height={displaySize}
           style={{
-            width: DISPLAY_SIZE,
-            height: DISPLAY_SIZE,
+            width: displaySize,
+            height: displaySize,
             imageRendering: 'pixelated',
             display: 'block',
           }}
